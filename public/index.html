@@ -77,14 +77,19 @@ body{font-family:'Nunito',sans-serif;background:#E0E0E0;display:flex;justify-con
 </div>
 
 <script>
-// Priya face image (compressed base64)
+// === Ü Life — Priya Voice Companion ===
+
+// Session ID — unique per page load, prevents stale audio from previous sessions
+var SESSION = Date.now();
+
+// Priya face
 document.getElementById('avImg').src = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAoHBwgHBgoICAgLCgoLDhgQDg0NDh0VFhEYIx8lJCIfIiEmKzcvJik0KSEiMEExNDk7Pj4+JS5ESUM8SDc9Pjv/2wBDAQoLCw4NDhwQEBw7KCIoOzs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozv/wAARCAB4AHgDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwD2SiiigAooooAKKKKACiq19qVjpkPnX13DbR/3pXC5+nrXN3HxO8KQPtW/eYjvFA7D88UDsdbRXOab4/8ADOpyCOHU0jkPAWcGPP4nj9a6JHV1DIwZTyCDkGgQtFFFABRRRQAUUUUAFFFFABRRRQAVw3jn4iweHA1hp+yfUcfMTykP19T7VpePPFS+GNDLRHN5cZSAenq34fzr55u7uSe4d5HLyuxLMTnk/wBaTZSXVl++1W/1q9a5v7qSeZj95znHsB2q7bWCpF5tzIkQPQyNyfwFVrOJLK1NxLy4xjjOCegx3PtUyaHrWqDzhagbuQZDlsVm5xjuzWMJS2RMI4ZiRDJBckdURirfka0tE8b6j4duI4rSYyW7ZzDMcrx2x2P0rIPgzWkAlCAMvI56VBcaVdNdQrNGyvnLcgURqRb0YSpyS1R9CeHPElj4l04Xdm+GHEsRPzRt6H2961q+ftK1S+8GeII72IMYWwJougde4+vcV71Y3tvqNjDe2sgkhnQOjDuDWhi0T0UUUxBRRRQAUUUUAFQ3d3FZW5mmYKuQo9yTgD8zU1ef/Fu+mtdDiSKUJ5jbSucE85z+G39aTdhpXZ5x8QvFB1zxBNJExMUf7qAZ+6o7/U9a5a0jxICw+bqAew9TTXaR3LHy0PduM1YswpkAQFuRknq57VBqdPo1ib66jMi5jhOcHux6k16LY2yogBUYrjdOj1TSbRJIlsrodXiDFXH49663S9aivNPa4FpMrxj5oQMvn0HrXnz96Vz06a5Y8qRpvDH5f3RXHeK9ODw/aIgBLCdwNdVd6nYWaj7VdRwlum9sVjXs9te27mCeKdCMEowNLVNNDSUk4s5HV50v9Ct7sj94p8t8fp+RFdj8Htdaa1utEmYkwHzYQeyn7w/Pn8TXnayk6RfWhPzRyZA+jZrR+G2oGx8b2Rz8lzmFvx/yK9JM8uS6H0BRRRVmIUUUUAFFFFABXg3xP8QNqfiN7YMTb2oMagdM9z/L8q94YEqQOuK+ZfE1q8OqyxSf60E7y3Y/xZ/HP6VMjSHVmMYu4ZSPXFdF4c0GfUd0ikxqoOxsd/WsC1Cz3X2aMc7SS7GvTPCQENnCp4O0VzVpuKsjrw1JSd2Ztr4TvILqN/tUyALiQfMS59eePSuo0SCWCSUzMGwg3Y6bu9al1dW8NqzsRnHXsKqWMsMtlNKkyOWOAVPWuWUnLc7YwUb2OZ12Z4y11PZfaQuG56BScYFMs9R0+/TZFZCxvETehC7d6/h1BrsIrCK7hwwAdeODzWbdaRZWTmYIplxjcRyBTuuUXK3I8v1K6+x69dIf9XIcNU+jTmx1a1vY2DJFMsm4c7cHNUteVW1Oa6z8ryFVHrjiqkSywSBo2IHUYPUGu6Hwo8yppNn1gjrJGsiHKsMg+xp1YPgi6a88IadK9wZ38rDs3UEdvw6VvVsc7CiiigAooooADXz58SLVovE91JjCXE52/QMQf1FfQLorqVYZBryX4s6VFaWqXCrhvOLKzHJcNz1Poc/mKmRcDy3R7Ce51I+TIsbojtuYcdDXoHheT7TptqzOd+NrnuGHB/UVwFzAskYlhJwwzwcEGr/g7WJLC9e0kJMMgLf7retc9aDabOvD1FGSR6Dc3VzYuUltjcQMcb1bnPuDUKyaQ2ROLiANy0RBCg+tadkYr6Hkg7utWX0hFTDuZI/7hJxXEj0k49SCDU7VNgs5llVflO1tx9jVHXNTVbViziMH5d7nABPFXpZLe1T5FRAB2AAFeb+KNft9T1OGxLEWMMmZmAPzH8O1VCLmzKpUVOJj6/KsmotDD/qrfgD36mmwSHGxug5H0NSakLGfVpn03P2V23LuBGPXrTIY83Cp32DP5GvQhpFHlyd5NnuXwtuy+kCH+FlJx6MhAP5qV/Ku9rhPhfYPDoVtM4I3Q7yT3LHj9FFd3Wi2MpbhRRRTJCiiigDM8Qz39rpEl1pu0zwfPsYZDqOo/wA+leG+NPFF74hdEumYeWeFK7VT1wOfzzX0Kea8Q8eW8Oj6pbyvpRWa3c796nyLlezAjpnuBjkVLLieeq8lo4Vhw38J9DTdOYJq8B7M+386W8uWurp53I3E52qOBRp1u819E4H3WDVM/hZpD4lY72ynubPmB8ex6VdfXdSkTy1VQTxkc0y0g3hTjqK07ewAbcQOK8ts9dLQwLuC5aB5ruY7QM7ScD8a4c2qSSSzMwwXJBPA6/rXd+M5zb6eFQH5mwfy4rzl/NkY9TXZh1o2cOKeqRYDpGPlOT0yOMV0ngbQR4h1d7dpooyRkuzZ2jodo7tjp+dczbWUkpLFXwPRC38q2tBnv9Mv/tdlZyuqkB08slW56eo6V1crONNH0hp9lDptnFaQLtRFAUH2GP5AVarkfA17dawk2p3cJh48uNMthectgEk+nJ/Kuupoh7hRRRTEFFFQ3dwtpayTtzsGQPU9hQBzvinxONPBsrKT/Sv43HPlj/GvMtTlvtfLm6mlljzsQOxOB1J/P+VaEsj3NxI7ks7ZLE9yW/8Ar1dsoE+yysFyE8wD8Biu9U4xicrm3I8+l8MTvKnl8K/J4rd0vw21ttLAMa7jTtMhuIHDgDagIP8An8KdNpTWa72IK5wK8bEqSk7bHsYVwsr7mZa2iwWqh/vrkY9RVxARGPlPNPEe48jNaa6cYohJO+0Y4UdTXHGnKb0O2dSMFqcvrmkNqNsI/L+YHIB71x8HgvV4b0mCBXjBxlz8uPQ16uIAXCIPmbnP90etTyRqiCJBtVRya9ihh1COu549fEOpLTY5W18PwiNPtUMctwRgBF2KMegHQD9a0p7C2sLUPNGG/hWML1PoBW3Z2w5mdeT0HoOwqO3hGpa2XYZgteAPVu/6/wAqty5peSMlHlXmyLR31nSo/OFjAbWQhnt1Y+YB6r2z7V2EUqTRLLG25HGVPqKoyY6D8afpsuA8B42/MP61m3cu1kXqKKKQgrF8RTEJFbj+IM5H0HH9aKKBx3PNUQpqdwh6CQAfTtWlpJD2c6f9NZFP48j+dFFektYI4npNm1ojgsEb+JMY/wA/StHUo82hPpyf8/hRRXmV18R6FB7Faxt0hi+1Tj/cX1pst000hlcZ7IvrRRTw0IpCxE5N6liBPKUknc55c+9IB5jhOueT9KKK6Zu0WzngrySJb2f7JZsy/eAwv1PAp+iQ+Rp6E/fl+cn2/wA/zoornWlP5mz1maL/AHeepqO1O28Vvcg0UVJRrUUUUyD/2Q==";
 
 var PROXY = "https://ulife-voice-proxy.vercel.app/api/tts";
 var cAudio = null;
 
 function uClock(){document.getElementById('clock').textContent=new Date().toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});}
-uClock();setInterval(uClock,30000);
+uClock(); setInterval(uClock,30000);
 document.getElementById('dinfo').textContent=new Date().toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long'})+' · A-101';
 
 var h=new Date().getHours();
@@ -94,7 +99,7 @@ var S={name:"Papa",bp:"128/80",bpOk:true,spo2:"97%",hr:"72",sugar:"118",health:8
   nMn:h<9?"Metformin 500mg":h<15?"Metformin 500mg":h<21?"Atorvastatin 10mg":"",
   st:Math.min(Math.round(h<6?200:(h-6)*350+200),5000),sg:5000,
   w:Math.min(Math.max(Math.round((h-6)*0.7),0),8),wg:8,
-  ss:78,sd:"7h 12m",ff:"Anand",fm:"Papa, we all miss you! Ananya drew a rainbow for you.",fu:2,
+  ss:78,sd:"7h 12m",ff:"Anand",fm:"We all miss you! Ananya drew a rainbow for you.",fu:2,
   wt:{t:32,c:"sunny"}};
 var ctx=h>=5&&h<12?"morning":h>=12&&h<17?"afternoon":h>=17&&h<21?"evening":"night";
 
@@ -103,51 +108,74 @@ function sM(m){
   var gw=document.getElementById('glow');
   var dt=document.getElementById('dot');
   var cs={idle:"#2A9D8F",speaking:"#4CAF50",happy:"#FFB300",concerned:"#FF7043"};
-  el.className='av '+m;
+  el.className='av '+(m||'idle');
   gw.style.background=cs[m]||cs.idle;
   dt.style.background=cs[m]||cs.idle;
 }
 
-// === AUDIO PIPELINE — strictly sequential, no overlap ===
+// === KILL all audio — called on every new item and on page init ===
+function killAudio(){
+  if(cAudio){
+    try{cAudio.pause();}catch(e){}
+    try{cAudio.src='';}catch(e){}
+    try{cAudio.load();}catch(e){}
+    cAudio=null;
+  }
+  try{window.speechSynthesis.cancel();}catch(e){}
+}
 
-// Fetch TTS audio from Sarvam via Vercel proxy
+// === Fetch TTS from Sarvam ===
 async function fetchAudio(text){
   try{
     var r=await fetch(PROXY,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text:text})});
     if(r.ok){var d=await r.json();if(d.audios&&d.audios[0])return d.audios[0];}
-  }catch(e){console.log("TTS fetch error:",e);}
+  }catch(e){}
   return null;
 }
 
-// Play base64 audio and WAIT until it truly finishes
-function playAndWait(b64){
+// === Play audio, return promise that resolves ONLY after audio truly ends ===
+function playAndWait(b64, sid){
   return new Promise(function(resolve){
-    if(cAudio){try{cAudio.pause();cAudio.src='';cAudio=null;}catch(e){}}
+    killAudio();
+    if(sid!==SESSION){resolve();return;} // stale session
+
     var au=new Audio("data:audio/wav;base64,"+b64);
     cAudio=au;
+    var resolved=false;
+    var finish=function(){
+      if(resolved)return;
+      resolved=true;
+      killAudio();
+      resolve();
+    };
 
-    // Get duration once loaded, then wait exactly that long
-    au.addEventListener('loadedmetadata',function(){
-      var waitMs=Math.ceil(au.duration*1000)+1000;
-      setTimeout(function(){
-        try{au.pause();}catch(e){}
-        cAudio=null;
-        resolve();
-      },waitMs);
-    });
+    // PRIMARY: poll currentTime until audio stops advancing
+    var lastTime=-1;
+    var stallCount=0;
+    var poller=setInterval(function(){
+      if(sid!==SESSION){clearInterval(poller);finish();return;}
+      if(!au||au.paused||au.ended){clearInterval(poller);finish();return;}
+      if(au.currentTime===lastTime){
+        stallCount++;
+        if(stallCount>3){clearInterval(poller);finish();return;} // stalled = done
+      }else{
+        stallCount=0;
+        lastTime=au.currentTime;
+      }
+    },500);
 
-    // If metadata never loads, estimate from audio size
-    var fallback=setTimeout(function(){try{au.pause();}catch(e){}cAudio=null;resolve();},20000);
-    au.addEventListener('loadedmetadata',function(){clearTimeout(fallback);});
+    // SAFETY: max 20 seconds per clip
+    setTimeout(function(){clearInterval(poller);finish();},20000);
 
-    au.play().catch(function(){clearTimeout(fallback);cAudio=null;resolve();});
+    au.play().catch(function(){clearInterval(poller);finish();});
   });
 }
 
-// Browser TTS fallback
-function spkB(text){
+// === Browser TTS fallback ===
+function spkB(text, sid){
   return new Promise(function(ok){
-    if(!window.speechSynthesis){setTimeout(ok,2000);return;}
+    if(sid!==SESSION){ok();return;}
+    if(!window.speechSynthesis){setTimeout(ok,1500);return;}
     window.speechSynthesis.cancel();
     var u=new SpeechSynthesisUtterance(text);
     var vs=window.speechSynthesis.getVoices();
@@ -156,128 +184,174 @@ function spkB(text){
       ||vs.find(function(v){return v.lang.indexOf('en')>=0;})||vs[0];
     if(v)u.voice=v;
     u.rate=0.9;u.pitch=1.05;
-    var d=false;var fin=function(){if(!d){d=true;ok();}};
+    var done=false;
+    var fin=function(){if(!done){done=true;ok();}};
     u.onend=fin;u.onerror=fin;
     setTimeout(fin,Math.max(text.length*90,3000)+1500);
     window.speechSynthesis.speak(u);
   });
 }
 
-// Card display
+// === Card display ===
 function sC(c){
-  if(!c){document.getElementById('cArea').innerHTML='';return;}
+  var area=document.getElementById('cArea');
+  if(!c){area.innerHTML='';return;}
   var bar='';
-  if(c.bar){var p=Math.min(Math.round(c.bar[0]/c.bar[1]*100),100);bar='<div style="height:4px;background:rgba(0,0,0,0.06);border-radius:2px;margin-top:4px;overflow:hidden"><div style="height:100%;width:'+p+'%;background:'+(c.color||'#2A9D8F')+';border-radius:2px"></div></div>';}
-  document.getElementById('cArea').innerHTML='<div class="nc"><div class="ni" style="background:'+(c.color||'#2A9D8F')+'15">'+c.icon+'</div><div style="flex:1"><div style="font-size:9px;color:#aaa;font-weight:700;text-transform:uppercase;letter-spacing:0.5px">'+c.label+'</div><div style="font-size:14px;font-weight:800;color:#1A1A2E;margin-top:1px">'+c.value+'</div>'+(c.sub?'<div style="font-size:10px;color:'+(c.color||'#888')+';margin-top:1px">'+c.sub+'</div>':'')+bar+'</div></div>';
+  if(c.bar){var p=Math.min(Math.round(c.bar[0]/c.bar[1]*100),100);bar='<div style="height:4px;background:rgba(0,0,0,0.06);border-radius:2px;margin-top:4px;overflow:hidden"><div style="height:100%;width:'+p+'%;background:'+(c.color||'#2A9D8F')+';border-radius:2px;transition:width 0.5s"></div></div>';}
+  area.innerHTML='<div class="nc"><div class="ni" style="background:'+(c.color||'#2A9D8F')+'15">'+c.icon+'</div><div style="flex:1"><div style="font-size:9px;color:#aaa;font-weight:700;text-transform:uppercase;letter-spacing:0.5px">'+c.label+'</div><div style="font-size:14px;font-weight:800;color:#1A1A2E;margin-top:1px">'+c.value+'</div>'+(c.sub?'<div style="font-size:10px;color:'+(c.color||'#888')+';margin-top:1px">'+c.sub+'</div>':'')+bar+'</div></div>';
 }
 
-// QUEUE — simple async loop, one message at a time
+// === QUEUE — async loop, one at a time, session-aware ===
 var Q=[];
 var playing=false;
 
 async function pQ(){
-  if(playing) return;
+  if(playing)return;
   playing=true;
+  var sid=SESSION; // capture session at start
 
-  while(Q.length>0){
+  while(Q.length>0 && sid===SESSION){
     var it=Q.shift();
 
-    // 1. Kill any leftover audio
-    if(cAudio){try{cAudio.pause();cAudio.src='';cAudio=null;}catch(e){}}
-    try{window.speechSynthesis.cancel();}catch(e){}
+    // 1. Kill leftover audio
+    killAudio();
+    if(sid!==SESSION)break;
 
-    // 2. Show speaking state, screen clean
+    // 2. Set mode, clear screen
     sM(it.zm||'speaking');
     sC(null);
-    document.getElementById('sBub').style.display='none';
 
-    // 3. Fetch audio
+    // 3. Fetch audio from API
     var b64=await fetchAudio(it.text);
+    if(sid!==SESSION)break;
 
-    // 4. Show card, play audio, WAIT for it to finish
+    // 4. Show card + play audio
     sC(it.card||null);
     if(b64){
-      await playAndWait(b64);
+      await playAndWait(b64, sid);
     }else{
-      await spkB(it.text);
+      await spkB(it.text, sid);
     }
+    if(sid!==SESSION)break;
 
     // 5. Clear card
     sC(null);
     sM('idle');
 
-    // 6. Silence gap — 2 seconds before next message
-    await new Promise(function(r){setTimeout(r,2000);});
+    // 6. Pause 1.5s between messages
+    await new Promise(function(r){setTimeout(r,1500);});
+    if(sid!==SESSION)break;
   }
 
   playing=false;
-  sM('idle');
-  sC(null);
+  if(sid===SESSION){sM('idle');sC(null);}
 }
 
 function nr(items){items.forEach(function(i){Q.push(i);});if(!playing)pQ();}
-function intr(){Q=[];playing=false;if(cAudio){try{cAudio.pause();cAudio.src='';cAudio=null;}catch(e){}}try{window.speechSynthesis.cancel();}catch(e){}sC(null);sM('idle');document.getElementById('sBub').style.display='none';}
 
+function intr(){
+  SESSION=Date.now(); // invalidate old session
+  Q=[];
+  playing=false;
+  killAudio();
+  sC(null);
+  sM('idle');
+}
 
+// === NARRATION — opening sequence ===
 function startN(){
   var g=ctx==='morning'?'Good morning, Papa.':ctx==='afternoon'?'Good afternoon, Papa.':ctx==='evening'?'Good evening, Papa.':'Hello, Papa.';
   var it=[];
   it.push({text:g+" How are you feeling today? Let me check on a few things.",zm:"speaking"});
-  it.push({text:"Blood pressure is "+S.bp+". "+(S.bpOk?"All normal, nothing to worry about.":"Slightly high today. Maybe some water and rest will help.")+" Oxygen "+S.spo2+", pulse "+S.hr+".",card:{icon:"❤️",label:"Health",value:"BP "+S.bp+" · SpO₂ "+S.spo2,sub:"Score "+S.health+" · Pulse "+S.hr,color:"#E53935"}});
-  it.push({text:S.mT+" of "+S.mN+" medicines done. "+(S.nMn?"The next one is "+S.nMn+". Please don't skip it.":"All taken! "+S.mS+" days in a row. So proud of you."),zm:S.nMn?"speaking":"happy",card:{icon:"💊",label:"Medications",value:S.nMn?"Next: "+S.nM:"All done ✓",sub:S.mT+"/"+S.mN+" · "+S.mS+" day streak",color:"#2A9D8F"}});
-  it.push({text:S.st.toLocaleString()+" steps so far. That's "+Math.round(S.st/S.sg*100)+" percent of your goal. "+(S.st>=S.sg*0.7?"Wonderful progress!":"A small walk in the garden would be lovely."),card:{icon:"🚶",label:"Steps",value:S.st.toLocaleString()+"/"+S.sg.toLocaleString(),color:"#43A047",bar:[S.st,S.sg]}});
-  it.push({text:S.w+" of "+S.wg+" glasses of water today. "+(S.w<5?"A few more would be good.":"That's great, keep going."),card:{icon:"💧",label:"Hydration",value:S.w+"/"+S.wg+" glasses",color:"#1E88E5",bar:[S.w,S.wg]}});
-  if(S.fu>0)it.push({text:S.ff+" sent a message. "+S.fm,card:{icon:"👨‍👩‍👧",label:"Family",value:S.fu+" messages from "+S.ff,color:"#AD1457"}});
+  it.push({text:"Blood pressure is "+S.bp+". "+(S.bpOk?"All normal, nothing to worry about.":"Slightly high today. Maybe some water and rest will help.")+" Oxygen "+S.spo2+", pulse "+S.hr+".",card:{icon:"\u2764\uFE0F",label:"Health",value:"BP "+S.bp+" \u00B7 SpO\u2082 "+S.spo2,sub:"Score "+S.health+" \u00B7 Pulse "+S.hr,color:"#E53935"}});
+  it.push({text:S.mT+" of "+S.mN+" medicines done. "+(S.nMn?"The next one is "+S.nMn+". Please don't skip it.":"All taken! "+S.mS+" days in a row. So proud of you."),zm:S.nMn?"speaking":"happy",card:{icon:"\uD83D\uDC8A",label:"Medications",value:S.nMn?"Next: "+S.nM:"All done \u2713",sub:S.mT+"/"+S.mN+" \u00B7 "+S.mS+" day streak",color:"#2A9D8F"}});
+  it.push({text:S.st.toLocaleString()+" steps so far. That's "+Math.round(S.st/S.sg*100)+" percent of your goal. "+(S.st>=S.sg*0.7?"Wonderful progress!":"A small walk in the garden would be lovely."),card:{icon:"\uD83D\uDEB6",label:"Steps",value:S.st.toLocaleString()+"/"+S.sg.toLocaleString(),color:"#43A047",bar:[S.st,S.sg]}});
+  it.push({text:S.w+" of "+S.wg+" glasses of water today. "+(S.w<5?"A few more would be good.":"That's great, keep going."),card:{icon:"\uD83D\uDCA7",label:"Hydration",value:S.w+"/"+S.wg+" glasses",color:"#1E88E5",bar:[S.w,S.wg]}});
+  if(S.fu>0)it.push({text:S.ff+" sent a message. "+S.fm,card:{icon:"\uD83D\uDC68\u200D\uD83D\uDC69\u200D\uD83D\uDC67",label:"Family",value:S.fu+" messages from "+S.ff,color:"#AD1457"}});
   it.push({text:"That's your update. I'm always here if you need anything.",zm:"idle"});
   nr(it);
 }
 
+// === COMMANDS ===
 function hCmd(cmd){
-  var c=cmd.toLowerCase();intr();
+  var c=cmd.toLowerCase();
+  intr();
   setTimeout(function(){
-    if(c.match(/bp|blood|health|vital/))nr([{text:"Blood pressure is "+S.bp+", health score "+S.health+", oxygen "+S.spo2+". Looking good.",card:{icon:"❤️",label:"Health",value:"BP "+S.bp,sub:"Score "+S.health,color:"#E53935"}}]);
-    else if(c.match(/sleep/))nr([{text:"Last night's sleep score was "+S.ss+". "+S.sd+" of rest. That's solid.",card:{icon:"😴",label:"Sleep",value:"Score "+S.ss,sub:S.sd,color:"#5E35B1"}}]);
-    else if(c.match(/take.*(med|pill)/))nr([{text:"Done! I've noted it down. You're doing great.",zm:"happy",card:{icon:"💊",label:"Medications",value:"Taken ✓",color:"#4CAF50"}}]);
-    else if(c.match(/med|medicine/))nr([{text:S.nMn?"Next one is "+S.nMn+", due at "+S.nM+". I'll remind you.":"Everything's taken for today. Well done!",card:{icon:"💊",label:"Meds",value:S.nMn?S.nM:"All done ✓",color:"#2A9D8F"}}]);
-    else if(c.match(/step|walk/))nr([{text:S.st.toLocaleString()+" steps. "+Math.round(S.st/S.sg*100)+" percent of goal. "+(S.st>=S.sg*0.7?"Almost there!":"The garden is lovely this time of day."),card:{icon:"🚶",label:"Steps",value:S.st.toLocaleString()+"/"+S.sg.toLocaleString(),color:"#43A047",bar:[S.st,S.sg]}}]);
-    else if(c.match(/water|drink/))nr([{text:S.w+" of "+S.wg+" glasses so far. "+(S.w<5?"A few more would be good.":"Nice, keep it up."),card:{icon:"💧",label:"Water",value:S.w+"/"+S.wg,color:"#1E88E5",bar:[S.w,S.wg]}}]);
-    else if(c.match(/family|priya|anand/))nr([{text:S.ff+" sent a message. "+S.fm,card:{icon:"👨‍👩‍👧",label:"Family",value:S.fu+" messages",color:"#AD1457"}}]);
-    else if(c.match(/music|raaga|play/))nr([{text:"Here's Mohanam. Sit back and enjoy.",zm:"happy",card:{icon:"🎵",label:"Music",value:"Mohanam",color:"#7B1FA2"}}]);
-    else if(c.match(/low|sad|difficult/))nr([{text:"I'm here, Papa. Don't worry. Some music? Or I can call someone. A walk might help too.",zm:"concerned",card:{icon:"😔",label:"Mood",value:"Feeling low",sub:"Music · Call · Garden walk",color:"#FF9800"}}]);
-    else if(c.match(/great|good|fine|happy|okay/))nr([{text:"That makes me so happy! Keep smiling, it's a beautiful day.",zm:"happy",card:{icon:"😊",label:"Mood",value:"Feeling good",color:"#4CAF50"}}]);
-    else if(c.match(/weather|temp/))nr([{text:S.wt.t+" degrees, "+S.wt.c+" skies. "+(S.wt.t>33?"Stay cool and hydrated.":"Nice weather for a stroll."),card:{icon:"☀️",label:"Weather",value:S.wt.t+"°C",sub:S.wt.c,color:"#1E88E5"}}]);
-    else if(c.match(/meal|lunch|breakfast|dinner/))nr([{text:"Good, eating on time matters. Hope it was tasty!",zm:"happy",card:{icon:"🍽️",label:"Meals",value:"Logged",color:"#FF8F00"}}]);
+    if(c.match(/bp|blood|health|vital/))nr([{text:"Blood pressure is "+S.bp+", health score "+S.health+", oxygen "+S.spo2+". Looking good.",card:{icon:"\u2764\uFE0F",label:"Health",value:"BP "+S.bp,sub:"Score "+S.health,color:"#E53935"}}]);
+    else if(c.match(/sleep/))nr([{text:"Last night's sleep score was "+S.ss+". "+S.sd+" of rest. That's solid.",card:{icon:"\uD83D\uDE34",label:"Sleep",value:"Score "+S.ss,sub:S.sd,color:"#5E35B1"}}]);
+    else if(c.match(/take.*(med|pill)/))nr([{text:"Done! I've noted it down. You're doing great.",zm:"happy",card:{icon:"\uD83D\uDC8A",label:"Medications",value:"Taken \u2713",color:"#4CAF50"}}]);
+    else if(c.match(/med|medicine/))nr([{text:S.nMn?"Next one is "+S.nMn+", due at "+S.nM+". I'll remind you.":"Everything's taken for today. Well done!",card:{icon:"\uD83D\uDC8A",label:"Meds",value:S.nMn?S.nM:"All done \u2713",color:"#2A9D8F"}}]);
+    else if(c.match(/step|walk/))nr([{text:S.st.toLocaleString()+" steps. "+Math.round(S.st/S.sg*100)+" percent of goal. "+(S.st>=S.sg*0.7?"Almost there!":"The garden is lovely this time of day."),card:{icon:"\uD83D\uDEB6",label:"Steps",value:S.st.toLocaleString()+"/"+S.sg.toLocaleString(),color:"#43A047",bar:[S.st,S.sg]}}]);
+    else if(c.match(/water|drink/))nr([{text:S.w+" of "+S.wg+" glasses so far. "+(S.w<5?"A few more would be good.":"Nice, keep it up."),card:{icon:"\uD83D\uDCA7",label:"Water",value:S.w+"/"+S.wg,color:"#1E88E5",bar:[S.w,S.wg]}}]);
+    else if(c.match(/family|priya|anand/))nr([{text:S.ff+" sent a message. "+S.fm,card:{icon:"\uD83D\uDC68\u200D\uD83D\uDC69\u200D\uD83D\uDC67",label:"Family",value:S.fu+" messages",color:"#AD1457"}}]);
+    else if(c.match(/music|raaga|play/))nr([{text:"Here's Mohanam. Sit back and enjoy.",zm:"happy",card:{icon:"\uD83C\uDFB5",label:"Music",value:"Mohanam",color:"#7B1FA2"}}]);
+    else if(c.match(/low|sad|difficult/))nr([{text:"I'm here, Papa. Don't worry. Some music? Or I can call someone. A walk might help too.",zm:"concerned",card:{icon:"\uD83D\uDE14",label:"Mood",value:"Feeling low",sub:"Music \u00B7 Call \u00B7 Garden walk",color:"#FF9800"}}]);
+    else if(c.match(/great|good|fine|happy|okay/))nr([{text:"That makes me so happy! Keep smiling, it's a beautiful day.",zm:"happy",card:{icon:"\uD83D\uDE0A",label:"Mood",value:"Feeling good",color:"#4CAF50"}}]);
+    else if(c.match(/weather|temp/))nr([{text:S.wt.t+" degrees, "+S.wt.c+" skies. "+(S.wt.t>33?"Stay cool and hydrated.":"Nice weather for a stroll."),card:{icon:"\u2600\uFE0F",label:"Weather",value:S.wt.t+"\u00B0C",sub:S.wt.c,color:"#1E88E5"}}]);
+    else if(c.match(/meal|lunch|breakfast|dinner/))nr([{text:"Good, eating on time matters. Hope it was tasty!",zm:"happy",card:{icon:"\uD83C\uDF7D\uFE0F",label:"Meals",value:"Logged",color:"#FF8F00"}}]);
     else nr([{text:"Just ask me anything. Health, medicines, sleep, family, steps, water, or how you're feeling."}]);
-  },100);
+  },150);
 }
 
+// === INIT ===
 var tIn,sBtn;
 window.addEventListener('DOMContentLoaded',function(){
-  tIn=document.getElementById('tIn');sBtn=document.getElementById('sBtn');
-  tIn.addEventListener('input',function(){sBtn.style.background=tIn.value.trim()?'linear-gradient(135deg,#2A9D8F,#1A7A6E)':'rgba(42,157,143,0.15)';sBtn.style.color=tIn.value.trim()?'white':'#2A9D8F';});
+  // Kill anything from previous load
+  killAudio();
+  SESSION=Date.now();
+  Q=[];
+  playing=false;
+
+  tIn=document.getElementById('tIn');
+  sBtn=document.getElementById('sBtn');
+  tIn.addEventListener('input',function(){
+    sBtn.style.background=tIn.value.trim()?'linear-gradient(135deg,#2A9D8F,#1A7A6E)':'rgba(42,157,143,0.15)';
+    sBtn.style.color=tIn.value.trim()?'white':'#2A9D8F';
+  });
   tIn.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();hSend();}});
-  tIn.addEventListener('focus',function(){if(playing&&Q.length>0)intr();});
-  // Load voices for fallback
+  tIn.addEventListener('focus',function(){if(playing)intr();});
+
   if(window.speechSynthesis)window.speechSynthesis.onvoiceschanged=function(){window.speechSynthesis.getVoices();};
-  setTimeout(startN,200);
+
+  // Pre-fetch first audio immediately, start narration as soon as DOM is ready
+  startN();
 });
-function hSend(){var v=tIn.value.trim();if(v){hCmd(v);tIn.value='';sBtn.style.background='rgba(42,157,143,0.15)';sBtn.style.color='#2A9D8F';tIn.blur();}}
+
+// Page visibility — stop audio when tab is hidden, restart when visible
+document.addEventListener('visibilitychange',function(){
+  if(document.hidden){
+    intr();
+  }
+});
+
+// Before unload — kill audio
+window.addEventListener('beforeunload',function(){
+  killAudio();
+  SESSION=0;
+});
+
+function hSend(){
+  var v=tIn.value.trim();
+  if(v){
+    hCmd(v);
+    tIn.value='';
+    sBtn.style.background='rgba(42,157,143,0.15)';
+    sBtn.style.color='#2A9D8F';
+    tIn.blur();
+  }
+}
+
 function sTab(t){
-  // Full reset
   intr();
-  document.getElementById('sBub').style.display='none';
-  document.getElementById('sTxt').innerHTML='';
-  document.getElementById('cArea').innerHTML='';
-  document.getElementById('cnt').classList.remove('hc');
-  sM('idle');
+  sC(null);
   Q=[];playing=false;
 
   if(t==='priya'){
-    setTimeout(startN,600);
-  } else if(t==='day'){
-    setTimeout(function(){nr([{text:"The My Day view is in the full app. Ask me anything here.",zm:"speaking"}]);},400);
-  } else if(t==='mod'){
-    setTimeout(function(){nr([{text:"All 13 modules are in the full app. I can tell you about any of them.",zm:"speaking"}]);},400);
+    setTimeout(startN,400);
+  }else if(t==='day'){
+    setTimeout(function(){nr([{text:"The My Day view is in the full app. Ask me anything here.",zm:"speaking"}]);},300);
+  }else if(t==='mod'){
+    setTimeout(function(){nr([{text:"All 13 modules are in the full app. I can tell you about any of them.",zm:"speaking"}]);},300);
   }
 }
 </script>

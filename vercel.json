@@ -3,5 +3,6 @@
     "api/tts.js": {
       "maxDuration": 15
     }
-  }
+  },
+  "regions": ["bom1"]
 }

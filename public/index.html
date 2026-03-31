@@ -16,11 +16,11 @@ body{font-family:'Nunito',sans-serif;background:#E0E0E0;display:flex;justify-con
 .phone{width:393px;height:852px;border-radius:55px;border:4px solid #1a1a1a;position:relative;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,0.3);display:flex;flex-direction:column;background:linear-gradient(170deg,#E8F5E9 0%,#B2EBF2 35%,#E3F2FD 65%,#F3E5F5 100%)}
 .island{position:absolute;top:10px;left:50%;transform:translateX(-50%);width:126px;height:37px;border-radius:20px;background:#000;z-index:50}
 .sbar{position:absolute;top:14px;left:32px;right:32px;display:flex;justify-content:space-between;z-index:40;font-size:13px;font-weight:600;color:#444}
-.cnt{flex:1;margin-top:56px;overflow-y:auto;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:justify-content 0.3s}
+.cnt{flex:1;margin-top:56px;position:relative;overflow:hidden}
 .cnt.hc{justify-content:flex-start;padding-top:12px}
 .aw{position:relative;display:inline-block;margin-bottom:6px;flex-shrink:0}
 .ag{position:absolute;inset:-8px;border-radius:50%;opacity:0.2;filter:blur(12px);transition:all 0.5s}
-.av{width:130px;height:130px;border-radius:50%;overflow:hidden;box-shadow:0 8px 32px rgba(42,157,143,0.35);border:4px solid rgba(42,157,143,0.4);transition:all 0.5s}
+.av{width:180px;height:180px;border-radius:50%;overflow:hidden;box-shadow:0 12px 40px rgba(42,157,143,0.4);border:5px solid rgba(42,157,143,0.4);transition:all 0.5s}
 .av.speaking{animation:zB 1.8s ease-in-out infinite;border-color:rgba(76,175,80,0.6)}
 .av.happy{animation:zJ 0.5s ease;border-color:rgba(255,179,0,0.6)}
 .av.concerned{border-color:rgba(255,112,67,0.6)}
@@ -49,19 +49,20 @@ body{font-family:'Nunito',sans-serif;background:#E0E0E0;display:flex;justify-con
   <div class="sbar"><span id="clock"></span><span style="font-size:12px;opacity:0.6">📶 🔋</span></div>
 
   <div class="cnt" id="cnt">
-    <div class="aw">
-      <div class="ag" id="glow" style="background:#2A9D8F"></div>
-      <div class="av idle" id="av">
-        <img id="avImg" alt="Priya" />
+    <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-55%);display:flex;flex-direction:column;align-items:center">
+      <div class="aw">
+        <div class="ag" id="glow" style="background:#2A9D8F"></div>
+        <div class="av idle" id="av">
+          <img id="avImg" alt="Priya" />
+        </div>
+        <div class="dt" id="dot" style="background:#2A9D8F"></div>
       </div>
-      <div class="dt" id="dot" style="background:#2A9D8F"></div>
+      <div style="font-size:10px;color:#2A9D8F;font-weight:700;letter-spacing:1px;text-transform:uppercase">Priya</div>
+      <div id="dinfo" style="font-size:10px;color:#999;margin-bottom:6px"></div>
     </div>
-    <div style="font-size:10px;color:#2A9D8F;font-weight:700;letter-spacing:1px;text-transform:uppercase">Priya</div>
-    <div id="dinfo" style="font-size:10px;color:#999;margin-bottom:10px"></div>
+    <div id="cArea" style="width:100%;position:absolute;top:58%;left:0"></div>
     <div class="sb" id="sBub" style="display:none"><div class="st" id="sTxt"></div></div>
-    <div id="cArea" style="width:100%"></div>
-    <div class="sp"></div>
-    <div class="ib">
+    <div class="ib" style="position:absolute;bottom:0;left:0;width:100%">
       <input id="tIn" placeholder="Talk to Priya..." autocomplete="off" />
       <div class="sn" id="sBtn" style="background:rgba(42,157,143,0.15);color:#2A9D8F" onclick="hSend()">➤</div>
     </div>
@@ -107,69 +108,62 @@ function sM(m){
   dt.style.background=cs[m]||cs.idle;
 }
 
-// Ritu TTS via Vercel proxy → Sarvam API
-async function spkR(text,onPlay){
-  if(cAudio){try{cAudio.pause();cAudio=null;}catch(e){}}
+// === AUDIO PIPELINE — strictly sequential, no overlap ===
 
-  // Vercel proxy (CORS-safe)
+// Fetch TTS audio from Sarvam via Vercel proxy
+async function fetchAudio(text){
   try{
-    var r=await fetch(PROXY,{
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({text:text})
-    });
-    if(r.ok){
-      var d=await r.json();
-      if(d.audios&&d.audios[0]){
-        var au=new Audio("data:audio/wav;base64,"+d.audios[0]);
-        cAudio=au;
-        return new Promise(function(ok){
-          au.onplay=function(){if(onPlay){onPlay();onPlay=null;}};
-          au.onended=function(){cAudio=null;ok();};
-          au.onerror=function(){cAudio=null;if(onPlay){onPlay();onPlay=null;}ok();};
-          au.play().catch(function(){if(onPlay){onPlay();onPlay=null;}ok();});
-        });
-      }
-    }
-  }catch(e){console.log("Proxy TTS failed:",e);}
-
-  // Fallback: browser TTS — trigger onPlay immediately
-  if(onPlay){onPlay();onPlay=null;}
-  return spkB(text);
+    var r=await fetch(PROXY,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text:text})});
+    if(r.ok){var d=await r.json();if(d.audios&&d.audios[0])return d.audios[0];}
+  }catch(e){console.log("TTS fetch error:",e);}
+  return null;
 }
 
+// Play base64 audio and WAIT until it truly finishes
+function playAndWait(b64){
+  return new Promise(function(resolve){
+    if(cAudio){try{cAudio.pause();cAudio.src='';cAudio=null;}catch(e){}}
+    var au=new Audio("data:audio/wav;base64,"+b64);
+    cAudio=au;
+
+    // Get duration once loaded, then wait exactly that long
+    au.addEventListener('loadedmetadata',function(){
+      var waitMs=Math.ceil(au.duration*1000)+1000;
+      setTimeout(function(){
+        try{au.pause();}catch(e){}
+        cAudio=null;
+        resolve();
+      },waitMs);
+    });
+
+    // If metadata never loads, estimate from audio size
+    var fallback=setTimeout(function(){try{au.pause();}catch(e){}cAudio=null;resolve();},20000);
+    au.addEventListener('loadedmetadata',function(){clearTimeout(fallback);});
+
+    au.play().catch(function(){clearTimeout(fallback);cAudio=null;resolve();});
+  });
+}
+
+// Browser TTS fallback
 function spkB(text){
   return new Promise(function(ok){
-    if(!window.speechSynthesis){ok();return;}
+    if(!window.speechSynthesis){setTimeout(ok,2000);return;}
     window.speechSynthesis.cancel();
     var u=new SpeechSynthesisUtterance(text);
     var vs=window.speechSynthesis.getVoices();
-    var v=vs.find(function(v){return v.name.indexOf('Samantha')>=0||v.name.indexOf('Karen')>=0;})
+    var v=vs.find(function(v){return v.name.indexOf('Samantha')>=0;})
       ||vs.find(function(v){return v.lang.indexOf('en-IN')>=0;})
       ||vs.find(function(v){return v.lang.indexOf('en')>=0;})||vs[0];
     if(v)u.voice=v;
-    u.rate=0.9;u.pitch=1.05;u.volume=1.0;
-    u.onend=ok;u.onerror=ok;
-    setTimeout(ok,Math.max(text.length*85,2500)+1000);
+    u.rate=0.9;u.pitch=1.05;
+    var d=false;var fin=function(){if(!d){d=true;ok();}};
+    u.onend=fin;u.onerror=fin;
+    setTimeout(fin,Math.max(text.length*90,3000)+1500);
     window.speechSynthesis.speak(u);
   });
 }
 
-// Typewriter
-var twT=null;
-function tw(text){
-  return new Promise(function(ok){
-    clearTimeout(twT);
-    var el=document.getElementById('sTxt');
-    var bub=document.getElementById('sBub');
-    var cnt=document.getElementById('cnt');
-    bub.style.display='block';cnt.classList.add('hc');
-    var i=0;el.innerHTML='';
-    function tk(){if(i<text.length){i++;el.innerHTML=text.substring(0,i)+'<span class="tc"></span>';twT=setTimeout(tk,22);}else{el.innerHTML=text;ok();}}
-    twT=setTimeout(tk,80);
-  });
-}
-
+// Card display
 function sC(c){
   if(!c){document.getElementById('cArea').innerHTML='';return;}
   var bar='';
@@ -177,75 +171,83 @@ function sC(c){
   document.getElementById('cArea').innerHTML='<div class="nc"><div class="ni" style="background:'+(c.color||'#2A9D8F')+'15">'+c.icon+'</div><div style="flex:1"><div style="font-size:9px;color:#aaa;font-weight:700;text-transform:uppercase;letter-spacing:0.5px">'+c.label+'</div><div style="font-size:14px;font-weight:800;color:#1A1A2E;margin-top:1px">'+c.value+'</div>'+(c.sub?'<div style="font-size:10px;color:'+(c.color||'#888')+';margin-top:1px">'+c.sub+'</div>':'')+bar+'</div></div>';
 }
 
-var Q=[],bsy=false;
+// QUEUE — simple async loop, one message at a time
+var Q=[];
+var playing=false;
+
 async function pQ(){
-  if(bsy||Q.length===0){if(Q.length===0)setTimeout(function(){sM('idle');},300);return;}
-  bsy=true;var it=Q.shift();sM(it.zm||'speaking');
-  // Fetch voice first, then show card+text when audio starts playing
-  var audioReady=false;
-  var audioObj=null;
+  if(playing) return;
+  playing=true;
 
-  // Start fetching voice immediately
-  var voicePromise=spkR(it.text,function(){
-    // onPlay callback — audio has started, NOW show card and text
+  while(Q.length>0){
+    var it=Q.shift();
+
+    // 1. Kill any leftover audio
+    if(cAudio){try{cAudio.pause();cAudio.src='';cAudio=null;}catch(e){}}
+    try{window.speechSynthesis.cancel();}catch(e){}
+
+    // 2. Show speaking state, screen clean
+    sM(it.zm||'speaking');
+    sC(null);
+    document.getElementById('sBub').style.display='none';
+
+    // 3. Fetch audio
+    var b64=await fetchAudio(it.text);
+
+    // 4. Show card, play audio, WAIT for it to finish
     sC(it.card||null);
-    tw(it.text);
-  });
-
-  // Timeout: if voice doesn't start within 3s, show card+text anyway
-  var fallbackTimer=setTimeout(function(){
-    if(!audioReady){
-      audioReady=true;
-      sC(it.card||null);
-      tw(it.text);
+    if(b64){
+      await playAndWait(b64);
+    }else{
+      await spkB(it.text);
     }
-  },3000);
 
-  // Wait for voice to finish
-  voicePromise.then(function(){
-    clearTimeout(fallbackTimer);
-    // Wait for typewriter to likely finish, then move on
-    setTimeout(function(){sC(null);bsy=false;pQ();},800);
-  }).catch(function(){
-    clearTimeout(fallbackTimer);
-    setTimeout(function(){sC(null);bsy=false;pQ();},800);
-  });
+    // 5. Clear card
+    sC(null);
+    sM('idle');
 
-  // Voice timeout — max 15 seconds per item
-  setTimeout(function(){if(bsy){sC(null);bsy=false;pQ();}},15000);
+    // 6. Silence gap — 2 seconds before next message
+    await new Promise(function(r){setTimeout(r,2000);});
+  }
+
+  playing=false;
+  sM('idle');
+  sC(null);
 }
-function nr(items){items.forEach(function(i){Q.push(i);});if(!bsy)pQ();}
-function intr(){Q=[];bsy=false;if(cAudio){try{cAudio.pause();cAudio=null;}catch(e){}}try{window.speechSynthesis.cancel();}catch(e){}clearTimeout(twT);sC(null);sM('idle');}
+
+function nr(items){items.forEach(function(i){Q.push(i);});if(!playing)pQ();}
+function intr(){Q=[];playing=false;if(cAudio){try{cAudio.pause();cAudio.src='';cAudio=null;}catch(e){}}try{window.speechSynthesis.cancel();}catch(e){}sC(null);sM('idle');document.getElementById('sBub').style.display='none';}
+
 
 function startN(){
-  var g=ctx==='morning'?'Good morning ':ctx==='afternoon'?'Good afternoon ':ctx==='evening'?'Good evening ':'Good night ';
+  var g=ctx==='morning'?'Good morning, Papa.':ctx==='afternoon'?'Good afternoon, Papa.':ctx==='evening'?'Good evening, Papa.':'Hello, Papa.';
   var it=[];
-  it.push({text:g+"Papa. How are you doing today? Let me check on everything for you.",zm:"speaking"});
-  it.push({text:"Papa, your blood pressure is "+S.bp+". "+(S.bpOk?"Perfectly normal, nothing to worry about.":"It's a little high today. Please have some water and rest.")+" Oxygen is "+S.spo2+" and pulse is "+S.hr+" beats per minute.",card:{icon:"❤️",label:"Health",value:"BP "+S.bp+" · SpO₂ "+S.spo2,sub:"Score "+S.health+" · Pulse "+S.hr,color:"#E53935"}});
-  it.push({text:S.mT+" of "+S.mN+" medicines done today. "+(S.nMn?"Papa, please don't forget your "+S.nMn+". It's important.":"All medicines taken! "+S.mS+" days in a row. I'm so proud of you, Papa."),zm:S.nMn?"speaking":"happy",card:{icon:"💊",label:"Medications",value:S.nMn?"Next: "+S.nM:"All done ✓",sub:S.mT+"/"+S.mN+" · "+S.mS+" day streak",color:"#2A9D8F"}});
-  it.push({text:"You've walked "+S.st.toLocaleString()+" steps today. That's "+Math.round(S.st/S.sg*100)+" percent of your goal. "+(S.st>=S.sg*0.7?"Very good, Papa!":"How about a nice walk in the garden? The weather is lovely."),card:{icon:"🚶",label:"Steps",value:S.st.toLocaleString()+"/"+S.sg.toLocaleString(),color:"#43A047",bar:[S.st,S.sg]}});
-  it.push({text:"You've had "+S.w+" of "+S.wg+" glasses of water. "+(S.w<5?"Papa, please drink some more water today.":"Good, keep it up!"),card:{icon:"💧",label:"Hydration",value:S.w+"/"+S.wg+" glasses",color:"#1E88E5",bar:[S.w,S.wg]}});
-  if(S.fu>0)it.push({text:S.ff+" sent you a message, Papa. "+S.fm,card:{icon:"👨‍👩‍👧",label:"Family",value:S.fu+" messages from "+S.ff,color:"#AD1457"}});
-  it.push({text:"That's everything for now, Papa. I'm always looking after you. Just type below if you need anything.",zm:"idle"});
+  it.push({text:g+" How are you feeling today? Let me check on a few things.",zm:"speaking"});
+  it.push({text:"Blood pressure is "+S.bp+". "+(S.bpOk?"All normal, nothing to worry about.":"Slightly high today. Maybe some water and rest will help.")+" Oxygen "+S.spo2+", pulse "+S.hr+".",card:{icon:"❤️",label:"Health",value:"BP "+S.bp+" · SpO₂ "+S.spo2,sub:"Score "+S.health+" · Pulse "+S.hr,color:"#E53935"}});
+  it.push({text:S.mT+" of "+S.mN+" medicines done. "+(S.nMn?"The next one is "+S.nMn+". Please don't skip it.":"All taken! "+S.mS+" days in a row. So proud of you."),zm:S.nMn?"speaking":"happy",card:{icon:"💊",label:"Medications",value:S.nMn?"Next: "+S.nM:"All done ✓",sub:S.mT+"/"+S.mN+" · "+S.mS+" day streak",color:"#2A9D8F"}});
+  it.push({text:S.st.toLocaleString()+" steps so far. That's "+Math.round(S.st/S.sg*100)+" percent of your goal. "+(S.st>=S.sg*0.7?"Wonderful progress!":"A small walk in the garden would be lovely."),card:{icon:"🚶",label:"Steps",value:S.st.toLocaleString()+"/"+S.sg.toLocaleString(),color:"#43A047",bar:[S.st,S.sg]}});
+  it.push({text:S.w+" of "+S.wg+" glasses of water today. "+(S.w<5?"A few more would be good.":"That's great, keep going."),card:{icon:"💧",label:"Hydration",value:S.w+"/"+S.wg+" glasses",color:"#1E88E5",bar:[S.w,S.wg]}});
+  if(S.fu>0)it.push({text:S.ff+" sent a message. "+S.fm,card:{icon:"👨‍👩‍👧",label:"Family",value:S.fu+" messages from "+S.ff,color:"#AD1457"}});
+  it.push({text:"That's your update. I'm always here if you need anything.",zm:"idle"});
   nr(it);
 }
 
 function hCmd(cmd){
   var c=cmd.toLowerCase();intr();
   setTimeout(function(){
-    if(c.match(/bp|blood|health|vital/))nr([{text:"Papa, your blood pressure is "+S.bp+". Health score is "+S.health+". Oxygen "+S.spo2+". Everything looks good.",card:{icon:"❤️",label:"Health",value:"BP "+S.bp,sub:"Score "+S.health,color:"#E53935"}}]);
-    else if(c.match(/sleep/))nr([{text:"You slept well last night, Papa. Sleep score is "+S.ss+". You got "+S.sd+" of rest. That's good for you.",card:{icon:"😴",label:"Sleep",value:"Score "+S.ss,sub:S.sd,color:"#5E35B1"}}]);
-    else if(c.match(/take.*(med|pill)/))nr([{text:"Well done, Papa! Medicine taken. I'm keeping track for you.",zm:"happy",card:{icon:"💊",label:"Medications",value:"Taken ✓",color:"#4CAF50"}}]);
-    else if(c.match(/med|medicine/))nr([{text:S.nMn?"Papa, your next medicine is "+S.nMn+". It's due at "+S.nM+". I'll remind you.":"All medicines done for today, Papa! You're so disciplined.",card:{icon:"💊",label:"Meds",value:S.nMn?S.nM:"All done ✓",color:"#2A9D8F"}}]);
-    else if(c.match(/step|walk/))nr([{text:S.st.toLocaleString()+" steps, Papa. "+Math.round(S.st/S.sg*100)+" percent of your goal. "+(S.st>=S.sg*0.7?"Almost there! Keep going!":"A short walk would be nice. The garden looks beautiful today."),card:{icon:"🚶",label:"Steps",value:S.st.toLocaleString()+"/"+S.sg.toLocaleString(),color:"#43A047",bar:[S.st,S.sg]}}]);
-    else if(c.match(/water|drink/))nr([{text:"Papa, you've had "+S.w+" of "+S.wg+" glasses. "+(S.w<5?"Please have some more water. It's important.":"Good hydration! Keep it up."),card:{icon:"💧",label:"Water",value:S.w+"/"+S.wg,color:"#1E88E5",bar:[S.w,S.wg]}}]);
-    else if(c.match(/family|priya|anand/))nr([{text:S.ff+" sent a message, Papa. "+S.fm,card:{icon:"👨‍👩‍👧",label:"Family",value:S.fu+" messages",color:"#AD1457"}}]);
-    else if(c.match(/music|raaga|play/))nr([{text:"Here's Mohanam for you, Papa. Sit back and relax.",zm:"happy",card:{icon:"🎵",label:"Music",value:"Mohanam",color:"#7B1FA2"}}]);
-    else if(c.match(/low|sad|difficult/))nr([{text:"Papa, don't worry. I'm here. Should I play some music for you? Or would you like me to call? A walk in the garden might help too.",zm:"concerned",card:{icon:"😔",label:"Mood",value:"Feeling low",sub:"Music · Call · Garden walk",color:"#FF9800"}}]);
-    else if(c.match(/great|good|fine|happy|okay/))nr([{text:"That makes me so happy, Papa! You keep smiling. It's a beautiful day.",zm:"happy",card:{icon:"😊",label:"Mood",value:"Feeling good",color:"#4CAF50"}}]);
-    else if(c.match(/weather|temp/))nr([{text:"Papa, it's "+S.wt.t+" degrees outside. "+S.wt.c+" skies. "+(S.wt.t>33?"Stay cool and drink water.":"Nice weather for a walk."),card:{icon:"☀️",label:"Weather",value:S.wt.t+"°C",sub:S.wt.c,color:"#1E88E5"}}]);
-    else if(c.match(/meal|lunch|breakfast|dinner/))nr([{text:"Good, Papa! Eating on time is important. Hope you enjoyed it.",zm:"happy",card:{icon:"🍽️",label:"Meals",value:"Logged",color:"#FF8F00"}}]);
-    else nr([{text:"Papa, just ask me anything. About your health, medicines, sleep, family, steps, water, or how you're feeling."}]);
+    if(c.match(/bp|blood|health|vital/))nr([{text:"Blood pressure is "+S.bp+", health score "+S.health+", oxygen "+S.spo2+". Looking good.",card:{icon:"❤️",label:"Health",value:"BP "+S.bp,sub:"Score "+S.health,color:"#E53935"}}]);
+    else if(c.match(/sleep/))nr([{text:"Last night's sleep score was "+S.ss+". "+S.sd+" of rest. That's solid.",card:{icon:"😴",label:"Sleep",value:"Score "+S.ss,sub:S.sd,color:"#5E35B1"}}]);
+    else if(c.match(/take.*(med|pill)/))nr([{text:"Done! I've noted it down. You're doing great.",zm:"happy",card:{icon:"💊",label:"Medications",value:"Taken ✓",color:"#4CAF50"}}]);
+    else if(c.match(/med|medicine/))nr([{text:S.nMn?"Next one is "+S.nMn+", due at "+S.nM+". I'll remind you.":"Everything's taken for today. Well done!",card:{icon:"💊",label:"Meds",value:S.nMn?S.nM:"All done ✓",color:"#2A9D8F"}}]);
+    else if(c.match(/step|walk/))nr([{text:S.st.toLocaleString()+" steps. "+Math.round(S.st/S.sg*100)+" percent of goal. "+(S.st>=S.sg*0.7?"Almost there!":"The garden is lovely this time of day."),card:{icon:"🚶",label:"Steps",value:S.st.toLocaleString()+"/"+S.sg.toLocaleString(),color:"#43A047",bar:[S.st,S.sg]}}]);
+    else if(c.match(/water|drink/))nr([{text:S.w+" of "+S.wg+" glasses so far. "+(S.w<5?"A few more would be good.":"Nice, keep it up."),card:{icon:"💧",label:"Water",value:S.w+"/"+S.wg,color:"#1E88E5",bar:[S.w,S.wg]}}]);
+    else if(c.match(/family|priya|anand/))nr([{text:S.ff+" sent a message. "+S.fm,card:{icon:"👨‍👩‍👧",label:"Family",value:S.fu+" messages",color:"#AD1457"}}]);
+    else if(c.match(/music|raaga|play/))nr([{text:"Here's Mohanam. Sit back and enjoy.",zm:"happy",card:{icon:"🎵",label:"Music",value:"Mohanam",color:"#7B1FA2"}}]);
+    else if(c.match(/low|sad|difficult/))nr([{text:"I'm here, Papa. Don't worry. Some music? Or I can call someone. A walk might help too.",zm:"concerned",card:{icon:"😔",label:"Mood",value:"Feeling low",sub:"Music · Call · Garden walk",color:"#FF9800"}}]);
+    else if(c.match(/great|good|fine|happy|okay/))nr([{text:"That makes me so happy! Keep smiling, it's a beautiful day.",zm:"happy",card:{icon:"😊",label:"Mood",value:"Feeling good",color:"#4CAF50"}}]);
+    else if(c.match(/weather|temp/))nr([{text:S.wt.t+" degrees, "+S.wt.c+" skies. "+(S.wt.t>33?"Stay cool and hydrated.":"Nice weather for a stroll."),card:{icon:"☀️",label:"Weather",value:S.wt.t+"°C",sub:S.wt.c,color:"#1E88E5"}}]);
+    else if(c.match(/meal|lunch|breakfast|dinner/))nr([{text:"Good, eating on time matters. Hope it was tasty!",zm:"happy",card:{icon:"🍽️",label:"Meals",value:"Logged",color:"#FF8F00"}}]);
+    else nr([{text:"Just ask me anything. Health, medicines, sleep, family, steps, water, or how you're feeling."}]);
   },100);
 }
 
@@ -254,7 +256,7 @@ window.addEventListener('DOMContentLoaded',function(){
   tIn=document.getElementById('tIn');sBtn=document.getElementById('sBtn');
   tIn.addEventListener('input',function(){sBtn.style.background=tIn.value.trim()?'linear-gradient(135deg,#2A9D8F,#1A7A6E)':'rgba(42,157,143,0.15)';sBtn.style.color=tIn.value.trim()?'white':'#2A9D8F';});
   tIn.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();hSend();}});
-  tIn.addEventListener('focus',function(){if(bsy&&Q.length>0)intr();});
+  tIn.addEventListener('focus',function(){if(playing&&Q.length>0)intr();});
   // Load voices for fallback
   if(window.speechSynthesis)window.speechSynthesis.onvoiceschanged=function(){window.speechSynthesis.getVoices();};
   setTimeout(startN,200);
@@ -268,14 +270,14 @@ function sTab(t){
   document.getElementById('cArea').innerHTML='';
   document.getElementById('cnt').classList.remove('hc');
   sM('idle');
-  Q=[];bsy=false;
+  Q=[];playing=false;
 
   if(t==='priya'){
     setTimeout(startN,600);
   } else if(t==='day'){
-    setTimeout(function(){nr([{text:"Papa, My Day view is available in the full app. For now, ask me anything here.",zm:"speaking"}]);},400);
+    setTimeout(function(){nr([{text:"The My Day view is in the full app. Ask me anything here.",zm:"speaking"}]);},400);
   } else if(t==='mod'){
-    setTimeout(function(){nr([{text:"Papa, all 13 modules are available in the full app. I can tell you about any of them right here.",zm:"speaking"}]);},400);
+    setTimeout(function(){nr([{text:"All 13 modules are in the full app. I can tell you about any of them.",zm:"speaking"}]);},400);
   }
 }
 </script>

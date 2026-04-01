@@ -312,15 +312,15 @@ async function startN(){
     weatherData=wRes;
   }catch(e){}
 
-  // Use live weather or fallback
-  var wt=weatherData||{temp:S.wt.t,condition:S.wt.c,feels:S.wt.t+2,humidity:45,hydration:"Stay hydrated today."};
+  // Use live weather or fallback — with null safety
+  var wt=weatherData&&weatherData.temp?weatherData:{temp:32,condition:"sunny",feels:34,humidity:45,hydration:"Stay hydrated today."};
 
   var it=[];
   it.push({text:g+" I was just thinking about you. Let me see how your day is going.",zm:"speaking"});
 
   // Weather + hydration linked
-  var weatherText="It's "+wt.temp+" degrees outside right now. "+wt.condition+". Feels like "+wt.feels+" degrees.";
-  it.push({text:weatherText,card:{icon:"\u2600\uFE0F",label:"Weather",value:wt.temp+"\u00B0C \u00B7 "+wt.condition,sub:"Feels like "+wt.feels+"\u00B0 \u00B7 Humidity "+wt.humidity+"%",color:"#1E88E5"}});
+  var weatherText="It's "+wt.temp+" degrees outside right now. "+(wt.condition||"clear")+". Feels like "+(wt.feels||wt.temp)+" degrees.";
+  it.push({text:weatherText,card:{icon:"\u2600\uFE0F",label:"Weather",value:wt.temp+"\u00B0C \u00B7 "+(wt.condition||"clear"),sub:"Feels like "+(wt.feels||wt.temp)+"\u00B0 \u00B7 Humidity "+(wt.humidity||45)+"%",color:"#1E88E5"}});
 
   it.push({text:"Okay, so. Blood pressure is "+S.bp+". "+(S.bpOk?"That's perfect. Just the way it should be.":"Hmm, it's a little higher than usual. Please sit down, have some water, and take it easy for a bit.")+" Oxygen is at "+S.spo2+", and pulse is a steady "+S.hr+". All good.",card:{icon:"\u2764\uFE0F",label:"Health",value:"BP "+S.bp+" \u00B7 SpO\u2082 "+S.spo2,sub:"Score "+S.health+" \u00B7 Pulse "+S.hr,color:"#E53935"}});
 
@@ -329,8 +329,8 @@ async function startN(){
   it.push({text:"And you've done "+S.st.toLocaleString()+" steps! That's "+Math.round(S.st/S.sg*100)+" percent of your goal. "+(S.st>=S.sg*0.7?"That's wonderful. You're really keeping at it.":"Maybe after tea, a little walk to the garden? The fresh air would be so nice."),card:{icon:"\uD83D\uDEB6",label:"Steps",value:S.st.toLocaleString()+"/"+S.sg.toLocaleString(),color:"#43A047",bar:[S.st,S.sg]}});
 
   // Hydration linked to weather
-  var hydText=S.w+" glasses of water so far. "+(weatherData?wt.hydration:(S.w<5?"That's not enough, you know that. Please, just one more glass? For me.":"Good. I'm glad you're staying hydrated."));
-  it.push({text:hydText,card:{icon:"\uD83D\uDCA7",label:"Hydration",value:S.w+"/"+S.wg+" glasses",sub:wt.temp>=32?"Hot today \u2014 drink more":"Keep sipping through the day",color:"#1E88E5",bar:[S.w,S.wg]}});
+  var hydText=S.w+" glasses of water so far. "+(wt.hydration||(S.w<5?"That's not enough, you know that. Please, just one more glass? For me.":"Good. I'm glad you're staying hydrated."));
+  it.push({text:hydText,card:{icon:"\uD83D\uDCA7",label:"Hydration",value:S.w+"/"+S.wg+" glasses",sub:(wt.temp||32)>=32?"Hot today \u2014 drink more":"Keep sipping through the day",color:"#1E88E5",bar:[S.w,S.wg]}});
 
   if(S.fu>0)it.push({text:"Oh, and there's something sweet. "+S.ff+" sent you a message. "+S.fm+" Isn't that just lovely?",card:{icon:"\uD83D\uDC68\u200D\uD83D\uDC69\u200D\uD83D\uDC67",label:"Family",value:S.fu+" messages from "+S.ff,color:"#AD1457"}});
 
@@ -355,9 +355,10 @@ function hCmd(cmd){
     else if(c.match(/great|good|fine|happy|okay/))nr([{text:"Oh, that makes my whole day! When you're happy, everything feels right. Keep that smile going.",zm:"happy",card:{icon:"\uD83D\uDE0A",label:"Mood",value:"Feeling good",color:"#4CAF50"}}]);
     else if(c.match(/weather|temp/)){
       fetch(BASE+'/api/weather').then(function(r){return r.json();}).then(function(w){
-        nr([{text:"Right now it's "+w.temp+" degrees outside. "+w.condition+". Feels like "+w.feels+" degrees. "+(w.temp>=33?"It's quite warm, so please stay in the shade and keep drinking water.":"Really pleasant weather. Perfect for sitting in the verandah with a cup of chai."),card:{icon:"\u2600\uFE0F",label:"Weather",value:w.temp+"\u00B0C",sub:w.condition+" \u00B7 Humidity "+w.humidity+"%",color:"#1E88E5"}}]);
+        var t=w.temp||32;var cd=w.condition||"clear";var fl=w.feels||t;var hm=w.humidity||45;
+        nr([{text:"Right now it's "+t+" degrees outside. "+cd+". Feels like "+fl+" degrees. "+(t>=33?"It's quite warm, so please stay in the shade and keep drinking water.":"Really pleasant weather. Perfect for sitting in the verandah with a cup of chai."),card:{icon:"\u2600\uFE0F",label:"Weather",value:t+"\u00B0C",sub:cd+" \u00B7 Humidity "+hm+"%",color:"#1E88E5"}}]);
       }).catch(function(){
-        nr([{text:"It's about "+S.wt.t+" degrees outside. "+S.wt.c+" skies.",card:{icon:"\u2600\uFE0F",label:"Weather",value:S.wt.t+"\u00B0C",sub:S.wt.c,color:"#1E88E5"}}]);
+        nr([{text:"It's about 32 degrees outside. Sunny skies.",card:{icon:"\u2600\uFE0F",label:"Weather",value:"32\u00B0C",sub:"sunny",color:"#1E88E5"}}]);
       });
     }
     else if(c.match(/meal|lunch|breakfast|dinner/))nr([{text:"Good, I'm glad you ate. What did you have? I hope it was something you enjoyed. Eating well is so important.",zm:"happy",card:{icon:"\uD83C\uDF7D\uFE0F",label:"Meals",value:"Logged",color:"#FF8F00"}}]);

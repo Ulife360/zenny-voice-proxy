@@ -137,37 +137,67 @@ async function fetchAudio(text){
 function playAndWait(b64, sid){
   return new Promise(function(resolve){
     killAudio();
-    if(sid!==SESSION){resolve();return;} // stale session
+    if(sid!==SESSION){resolve();return;}
 
     var au=new Audio("data:audio/wav;base64,"+b64);
     cAudio=au;
     var resolved=false;
+    var started=false;
+    var poller=null;
+    var safety=null;
+
     var finish=function(){
       if(resolved)return;
       resolved=true;
-      killAudio();
+      if(poller)clearInterval(poller);
+      if(safety)clearTimeout(safety);
+      // Don't call killAudio here — let the caller do it
+      // Just stop this specific audio
+      try{au.pause();}catch(e){}
+      cAudio=null;
       resolve();
     };
 
-    // PRIMARY: poll currentTime until audio stops advancing
-    var lastTime=-1;
-    var stallCount=0;
-    var poller=setInterval(function(){
-      if(sid!==SESSION){clearInterval(poller);finish();return;}
-      if(!au||au.paused||au.ended){clearInterval(poller);finish();return;}
-      if(au.currentTime===lastTime){
-        stallCount++;
-        if(stallCount>3){clearInterval(poller);finish();return;} // stalled = done
-      }else{
-        stallCount=0;
-        lastTime=au.currentTime;
-      }
-    },500);
+    // SAFETY: absolute max 25 seconds
+    safety=setTimeout(finish, 25000);
 
-    // SAFETY: max 20 seconds per clip
-    setTimeout(function(){clearInterval(poller);finish();},20000);
+    au.play().then(function(){
+      // Audio has STARTED playing
+      started=true;
+      var lastTime=au.currentTime;
+      var sameCount=0;
 
-    au.play().catch(function(){clearInterval(poller);finish();});
+      // Poll every 400ms — check if audio is still advancing
+      poller=setInterval(function(){
+        if(sid!==SESSION||resolved){clearInterval(poller);finish();return;}
+
+        // Check if audio element is done
+        if(au.ended||au.paused){
+          clearInterval(poller);
+          // Small buffer to ensure last bit played
+          setTimeout(finish, 300);
+          return;
+        }
+
+        var ct=au.currentTime;
+        if(ct===lastTime){
+          sameCount++;
+          // After 2 seconds of no movement (5 polls), audio is done
+          if(sameCount>=5){
+            clearInterval(poller);
+            setTimeout(finish, 300);
+            return;
+          }
+        }else{
+          sameCount=0;
+          lastTime=ct;
+        }
+      }, 400);
+
+    }).catch(function(){
+      // Play failed
+      finish();
+    });
   });
 }
 
@@ -201,32 +231,42 @@ function sC(c){
   area.innerHTML='<div class="nc"><div class="ni" style="background:'+(c.color||'#2A9D8F')+'15">'+c.icon+'</div><div style="flex:1"><div style="font-size:9px;color:#aaa;font-weight:700;text-transform:uppercase;letter-spacing:0.5px">'+c.label+'</div><div style="font-size:14px;font-weight:800;color:#1A1A2E;margin-top:1px">'+c.value+'</div>'+(c.sub?'<div style="font-size:10px;color:'+(c.color||'#888')+';margin-top:1px">'+c.sub+'</div>':'')+bar+'</div></div>';
 }
 
-// === QUEUE — async loop, one at a time, session-aware ===
+// === QUEUE — pre-fetch ALL audio in parallel, then play sequentially ===
 var Q=[];
 var playing=false;
 
 async function pQ(){
   if(playing)return;
   playing=true;
-  var sid=SESSION; // capture session at start
+  var sid=SESSION;
 
-  while(Q.length>0 && sid===SESSION){
-    var it=Q.shift();
+  // Take a snapshot of the current queue
+  var items=Q.splice(0,Q.length);
+  if(items.length===0){playing=false;return;}
 
-    // 1. Kill leftover audio
+  // STEP 1: Fetch ALL audio clips in parallel (this is where speed comes from)
+  sM('speaking'); // show speaking state while loading
+  var fetchPromises=items.map(function(it){return fetchAudio(it.text);});
+  var audioClips=await Promise.all(fetchPromises);
+  if(sid!==SESSION){playing=false;return;}
+
+  // STEP 2: Play them one by one — no API wait between messages
+  for(var i=0;i<items.length;i++){
+    if(sid!==SESSION)break;
+    var it=items[i];
+    var b64=audioClips[i];
+
+    // HARD KILL anything still playing
     killAudio();
+    // Mandatory 200ms silence to ensure browser audio system is clear
+    await new Promise(function(r){setTimeout(r,200);});
     if(sid!==SESSION)break;
 
-    // 2. Set mode, clear screen
+    // Show mode + card
     sM(it.zm||'speaking');
-    sC(null);
-
-    // 3. Fetch audio from API
-    var b64=await fetchAudio(it.text);
-    if(sid!==SESSION)break;
-
-    // 4. Show card + play audio
     sC(it.card||null);
+
+    // Play audio (already fetched — instant start)
     if(b64){
       await playAndWait(b64, sid);
     }else{
@@ -234,17 +274,19 @@ async function pQ(){
     }
     if(sid!==SESSION)break;
 
-    // 5. Clear card
+    // HARD KILL after playback to ensure clean state
+    killAudio();
+
+    // Clear card, pause between messages
     sC(null);
     sM('idle');
-
-    // 6. Pause 1.5s between messages
     await new Promise(function(r){setTimeout(r,1500);});
-    if(sid!==SESSION)break;
   }
 
+  // Check if new items were added while playing
   playing=false;
   if(sid===SESSION){sM('idle');sC(null);}
+  if(Q.length>0)pQ();
 }
 
 function nr(items){items.forEach(function(i){Q.push(i);});if(!playing)pQ();}
@@ -262,13 +304,13 @@ function intr(){
 function startN(){
   var g=ctx==='morning'?'Good morning, Papa.':ctx==='afternoon'?'Good afternoon, Papa.':ctx==='evening'?'Good evening, Papa.':'Hello, Papa.';
   var it=[];
-  it.push({text:g+" How are you feeling today? Let me check on a few things.",zm:"speaking"});
-  it.push({text:"Blood pressure is "+S.bp+". "+(S.bpOk?"All normal, nothing to worry about.":"Slightly high today. Maybe some water and rest will help.")+" Oxygen "+S.spo2+", pulse "+S.hr+".",card:{icon:"\u2764\uFE0F",label:"Health",value:"BP "+S.bp+" \u00B7 SpO\u2082 "+S.spo2,sub:"Score "+S.health+" \u00B7 Pulse "+S.hr,color:"#E53935"}});
-  it.push({text:S.mT+" of "+S.mN+" medicines done. "+(S.nMn?"The next one is "+S.nMn+". Please don't skip it.":"All taken! "+S.mS+" days in a row. So proud of you."),zm:S.nMn?"speaking":"happy",card:{icon:"\uD83D\uDC8A",label:"Medications",value:S.nMn?"Next: "+S.nM:"All done \u2713",sub:S.mT+"/"+S.mN+" \u00B7 "+S.mS+" day streak",color:"#2A9D8F"}});
-  it.push({text:S.st.toLocaleString()+" steps so far. That's "+Math.round(S.st/S.sg*100)+" percent of your goal. "+(S.st>=S.sg*0.7?"Wonderful progress!":"A small walk in the garden would be lovely."),card:{icon:"\uD83D\uDEB6",label:"Steps",value:S.st.toLocaleString()+"/"+S.sg.toLocaleString(),color:"#43A047",bar:[S.st,S.sg]}});
-  it.push({text:S.w+" of "+S.wg+" glasses of water today. "+(S.w<5?"A few more would be good.":"That's great, keep going."),card:{icon:"\uD83D\uDCA7",label:"Hydration",value:S.w+"/"+S.wg+" glasses",color:"#1E88E5",bar:[S.w,S.wg]}});
-  if(S.fu>0)it.push({text:S.ff+" sent a message. "+S.fm,card:{icon:"\uD83D\uDC68\u200D\uD83D\uDC69\u200D\uD83D\uDC67",label:"Family",value:S.fu+" messages from "+S.ff,color:"#AD1457"}});
-  it.push({text:"That's your update. I'm always here if you need anything.",zm:"idle"});
+  it.push({text:g+" I was just thinking about you. Let me see how your day is going.",zm:"speaking"});
+  it.push({text:"Okay, so. Blood pressure is "+S.bp+". "+(S.bpOk?"That's perfect. Just the way it should be.":"Hmm, it's a little higher than usual. Please sit down, have some water, and take it easy for a bit.")+" Oxygen is at "+S.spo2+", and pulse is a steady "+S.hr+". All good.",card:{icon:"\u2764\uFE0F",label:"Health",value:"BP "+S.bp+" \u00B7 SpO\u2082 "+S.spo2,sub:"Score "+S.health+" \u00B7 Pulse "+S.hr,color:"#E53935"}});
+  it.push({text:S.mT+" of "+S.mN+" medicines done so far. "+(S.nMn?"The next one is "+S.nMn+". I know, I know, you don't like taking them. But please, for me?":"Every single one taken! "+S.mS+" days straight now. Do you know how amazing that is?"),zm:S.nMn?"speaking":"happy",card:{icon:"\uD83D\uDC8A",label:"Medications",value:S.nMn?"Next: "+S.nM:"All done \u2713",sub:S.mT+"/"+S.mN+" \u00B7 "+S.mS+" day streak",color:"#2A9D8F"}});
+  it.push({text:"And you've done "+S.st.toLocaleString()+" steps! That's "+Math.round(S.st/S.sg*100)+" percent of your goal. "+(S.st>=S.sg*0.7?"That's wonderful. You're really keeping at it.":"Maybe after tea, a little walk to the garden? The fresh air would be so nice."),card:{icon:"\uD83D\uDEB6",label:"Steps",value:S.st.toLocaleString()+"/"+S.sg.toLocaleString(),color:"#43A047",bar:[S.st,S.sg]}});
+  it.push({text:S.w+" glasses of water so far. "+(S.w<5?"That's not enough, you know that. Please, just one more glass? For me.":"Good. I'm glad you're staying hydrated. That makes me feel better."),card:{icon:"\uD83D\uDCA7",label:"Hydration",value:S.w+"/"+S.wg+" glasses",color:"#1E88E5",bar:[S.w,S.wg]}});
+  if(S.fu>0)it.push({text:"Oh, and there's something sweet. "+S.ff+" sent you a message. "+S.fm+" Isn't that just lovely?",card:{icon:"\uD83D\uDC68\u200D\uD83D\uDC69\u200D\uD83D\uDC67",label:"Family",value:S.fu+" messages from "+S.ff,color:"#AD1457"}});
+  it.push({text:"That's everything for now. You're doing really well. I'm always right here whenever you need me.",zm:"idle"});
   nr(it);
 }
 
@@ -277,19 +319,19 @@ function hCmd(cmd){
   var c=cmd.toLowerCase();
   intr();
   setTimeout(function(){
-    if(c.match(/bp|blood|health|vital/))nr([{text:"Blood pressure is "+S.bp+", health score "+S.health+", oxygen "+S.spo2+". Looking good.",card:{icon:"\u2764\uFE0F",label:"Health",value:"BP "+S.bp,sub:"Score "+S.health,color:"#E53935"}}]);
-    else if(c.match(/sleep/))nr([{text:"Last night's sleep score was "+S.ss+". "+S.sd+" of rest. That's solid.",card:{icon:"\uD83D\uDE34",label:"Sleep",value:"Score "+S.ss,sub:S.sd,color:"#5E35B1"}}]);
-    else if(c.match(/take.*(med|pill)/))nr([{text:"Done! I've noted it down. You're doing great.",zm:"happy",card:{icon:"\uD83D\uDC8A",label:"Medications",value:"Taken \u2713",color:"#4CAF50"}}]);
-    else if(c.match(/med|medicine/))nr([{text:S.nMn?"Next one is "+S.nMn+", due at "+S.nM+". I'll remind you.":"Everything's taken for today. Well done!",card:{icon:"\uD83D\uDC8A",label:"Meds",value:S.nMn?S.nM:"All done \u2713",color:"#2A9D8F"}}]);
-    else if(c.match(/step|walk/))nr([{text:S.st.toLocaleString()+" steps. "+Math.round(S.st/S.sg*100)+" percent of goal. "+(S.st>=S.sg*0.7?"Almost there!":"The garden is lovely this time of day."),card:{icon:"\uD83D\uDEB6",label:"Steps",value:S.st.toLocaleString()+"/"+S.sg.toLocaleString(),color:"#43A047",bar:[S.st,S.sg]}}]);
-    else if(c.match(/water|drink/))nr([{text:S.w+" of "+S.wg+" glasses so far. "+(S.w<5?"A few more would be good.":"Nice, keep it up."),card:{icon:"\uD83D\uDCA7",label:"Water",value:S.w+"/"+S.wg,color:"#1E88E5",bar:[S.w,S.wg]}}]);
-    else if(c.match(/family|priya|anand/))nr([{text:S.ff+" sent a message. "+S.fm,card:{icon:"\uD83D\uDC68\u200D\uD83D\uDC69\u200D\uD83D\uDC67",label:"Family",value:S.fu+" messages",color:"#AD1457"}}]);
-    else if(c.match(/music|raaga|play/))nr([{text:"Here's Mohanam. Sit back and enjoy.",zm:"happy",card:{icon:"\uD83C\uDFB5",label:"Music",value:"Mohanam",color:"#7B1FA2"}}]);
-    else if(c.match(/low|sad|difficult/))nr([{text:"I'm here, Papa. Don't worry. Some music? Or I can call someone. A walk might help too.",zm:"concerned",card:{icon:"\uD83D\uDE14",label:"Mood",value:"Feeling low",sub:"Music \u00B7 Call \u00B7 Garden walk",color:"#FF9800"}}]);
-    else if(c.match(/great|good|fine|happy|okay/))nr([{text:"That makes me so happy! Keep smiling, it's a beautiful day.",zm:"happy",card:{icon:"\uD83D\uDE0A",label:"Mood",value:"Feeling good",color:"#4CAF50"}}]);
-    else if(c.match(/weather|temp/))nr([{text:S.wt.t+" degrees, "+S.wt.c+" skies. "+(S.wt.t>33?"Stay cool and hydrated.":"Nice weather for a stroll."),card:{icon:"\u2600\uFE0F",label:"Weather",value:S.wt.t+"\u00B0C",sub:S.wt.c,color:"#1E88E5"}}]);
-    else if(c.match(/meal|lunch|breakfast|dinner/))nr([{text:"Good, eating on time matters. Hope it was tasty!",zm:"happy",card:{icon:"\uD83C\uDF7D\uFE0F",label:"Meals",value:"Logged",color:"#FF8F00"}}]);
-    else nr([{text:"Just ask me anything. Health, medicines, sleep, family, steps, water, or how you're feeling."}]);
+    if(c.match(/bp|blood|health|vital/))nr([{text:"Let me check. Blood pressure is "+S.bp+", health score "+S.health+", oxygen "+S.spo2+". Everything is looking just fine. Nothing to worry about.",card:{icon:"\u2764\uFE0F",label:"Health",value:"BP "+S.bp,sub:"Score "+S.health,color:"#E53935"}}]);
+    else if(c.match(/sleep/))nr([{text:"You slept well! Sleep score was "+S.ss+", and you got "+S.sd+" of rest. That's really good. A proper night's sleep makes all the difference.",card:{icon:"\uD83D\uDE34",label:"Sleep",value:"Score "+S.ss,sub:S.sd,color:"#5E35B1"}}]);
+    else if(c.match(/take.*(med|pill)/))nr([{text:"That's wonderful! One more ticked off. You know how happy it makes me when you take them on time.",zm:"happy",card:{icon:"\uD83D\uDC8A",label:"Medications",value:"Taken \u2713",color:"#4CAF50"}}]);
+    else if(c.match(/med|medicine/))nr([{text:S.nMn?"The next one is "+S.nMn+", due at "+S.nM+". Don't worry, I'll remind you when it's time.":"You've taken everything for today! All done. No more nagging from me, I promise.",card:{icon:"\uD83D\uDC8A",label:"Meds",value:S.nMn?S.nM:"All done \u2713",color:"#2A9D8F"}}]);
+    else if(c.match(/step|walk/))nr([{text:S.st.toLocaleString()+" steps so far. That's "+Math.round(S.st/S.sg*100)+" percent of your goal. "+(S.st>=S.sg*0.7?"You're so close! Just a little more and you've done it.":"You know what would be nice? A walk to the garden. The evening light is beautiful this time."),card:{icon:"\uD83D\uDEB6",label:"Steps",value:S.st.toLocaleString()+"/"+S.sg.toLocaleString(),color:"#43A047",bar:[S.st,S.sg]}}]);
+    else if(c.match(/water|drink/))nr([{text:S.w+" of "+S.wg+" glasses. "+(S.w<5?"That's not quite enough. One more glass? I'll feel so much better knowing you did.":"That's really good. You're taking such good care of yourself."),card:{icon:"\uD83D\uDCA7",label:"Water",value:S.w+"/"+S.wg,color:"#1E88E5",bar:[S.w,S.wg]}}]);
+    else if(c.match(/family|priya|anand/))nr([{text:"Oh yes! "+S.ff+" sent something lovely. "+S.fm+" They're always thinking about you, you know.",card:{icon:"\uD83D\uDC68\u200D\uD83D\uDC69\u200D\uD83D\uDC67",label:"Family",value:S.fu+" messages",color:"#AD1457"}}]);
+    else if(c.match(/music|raaga|play/))nr([{text:"Ah, Mohanam. Your favourite. Let me put it on for you. Just close your eyes and enjoy.",zm:"happy",card:{icon:"\uD83C\uDFB5",label:"Music",value:"Mohanam",color:"#7B1FA2"}}]);
+    else if(c.match(/low|sad|difficult/))nr([{text:"Oh, Papa. I wish I could be there with you right now. Tell me what's bothering you. Or, should I put on some music? Sometimes that helps. Or we could call someone you'd like to talk to.",zm:"concerned",card:{icon:"\uD83D\uDE14",label:"Mood",value:"Feeling low",sub:"Music \u00B7 Call \u00B7 Garden walk",color:"#FF9800"}}]);
+    else if(c.match(/great|good|fine|happy|okay/))nr([{text:"Oh, that makes my whole day! When you're happy, everything feels right. Keep that smile going.",zm:"happy",card:{icon:"\uD83D\uDE0A",label:"Mood",value:"Feeling good",color:"#4CAF50"}}]);
+    else if(c.match(/weather|temp/))nr([{text:"Right now it's "+S.wt.t+" degrees outside. "+S.wt.c+" skies. "+(S.wt.t>33?"It's quite warm, so please stay in the shade and keep drinking water.":"Really pleasant weather. Perfect for sitting in the verandah with a cup of chai."),card:{icon:"\u2600\uFE0F",label:"Weather",value:S.wt.t+"\u00B0C",sub:S.wt.c,color:"#1E88E5"}}]);
+    else if(c.match(/meal|lunch|breakfast|dinner/))nr([{text:"Good, I'm glad you ate. What did you have? I hope it was something you enjoyed. Eating well is so important.",zm:"happy",card:{icon:"\uD83C\uDF7D\uFE0F",label:"Meals",value:"Logged",color:"#FF8F00"}}]);
+    else nr([{text:"I'm right here. You can ask me about anything. Your health, medicines, how you slept, what the family sent, or just tell me how you're feeling. I'm listening."}]);
   },150);
 }
 
